@@ -1,0 +1,30 @@
+when HTTP_REQUEST {
+    if { [string tolower [HTTP::host] == "webtop.zerotrust.works" } {
+        switch -glob [string tolower [HTTP::path]] {
+            "/" -
+            "/my.policy" {
+                if { [HTTP::cookie value MRHSession] != "" && [ACCESS::session exists [HTTP::cookie value MRHSession]] } {
+                    log local0. "MRHSession Cookie = [HTTP::cookie value MRHSession]"
+                    switch [ACCESS::policy result -sid [HTTP::cookie value MRHSession]] {
+                        "allow" {
+                            log local0. "Policy Result allow"
+                            HTTP::redirect "https://webtop.zerotrust.works/vdesk/webtop.eui?webtop=[ACCESS::session data get "session.assigned.webtop"]&webtop_type=webtop_full"
+                        }
+                        "deny" {
+                            log local0. "Policy Result deny"
+                        }
+                        default {
+                            log local0. "Policy Result unknown"
+                        }
+                    }
+                }
+            }
+            default {
+                log local0. "Default branch"
+            }
+        }
+    } else {
+        log local0. "Else branch"
+    }
+}
+

@@ -1,0 +1,26 @@
+when HTTP_REQUEST {
+    if {[active_members myPoolName] < 1} {
+        HTTP::respond 200 content "
+            <html>
+                <head>
+                    <title>Apology Page</title>
+                </head>
+                <body>
+                    <h1>We are sorry, but the site you are looking for is temporarily out of service<br>
+                    If you feel you have reached this page in error, please try again.</h1>
+                </body>
+            </html>"
+    }
+}
+when LB_FAILED {
+    HTTP::respond 200 content "
+            <html>
+                <head>
+                    <title>Apology Page</title>
+                </head>
+                <body>
+                    <h1>We are sorry, but the site you are looking for is temporarily out of service<br>
+                    If you feel you have reached this page in error, please try again.</h1>
+                </body>
+            </html>"
+}

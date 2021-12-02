@@ -1,0 +1,56 @@
+when RULE_INIT {
+    # enable (1) / disable (0) logging
+    set static::contentswitching_debug 1
+}
+ 
+when HTTP_REQUEST {
+    # Matching Host to Pool
+    if { [catch { pool [class match -value [string tolower [HTTP::host][HTTP::path]] starts_with dg_applications] }]} {
+        if { $static::contentswitching_debug } { log local0. "Caught exception: no pool matching for [string tolower [HTTP::host][HTTP::path]] ...retrying." }
+        return
+    }
+    if { $static::contentswitching_debug } { log local0. "Using pool: [LB::server pool]" }
+    
+    # Path rewrite
+    # Value is Case-Sensitive
+    if { $static::contentswitching_debug } { log local0. "Matching URL: [class match -name [string tolower [HTTP::path]] starts_with dg_path-rewrite]" }
+    if { [catch { HTTP::path "[string map [list "[class match -name [string tolower [HTTP::path]] starts_with dg_path-rewrite]" "[class match -value [string tolower [HTTP::path]] starts_with dg_path-rewrite]"] [string tolower [HTTP::path]]]" } err] } {
+        if { $static::contentswitching_debug } { log local0. "Path rewrite error message: $err" }
+        return
+    }
+    
+    # Host Header rewrite
+    if { $static::contentswitching_debug } { log local0. "Matching Internal Host: [class match -value [string tolower [HTTP::host]] starts_with dg_hostheader]" }
+    if { [catch {HTTP::header replace host [class match -value [string tolower [HTTP::host]] starts_with dg_hostheader] } err ] } {
+        if { $static::contentswitching_debug } { log local0. "Path rewrite error message: $err" }
+        return
+    }
+   
+    # Disable STREAM in HTTP_REQUEST context
+    STREAM::disable
+
+    # Set STREAM expression for HTTP_RESPONE context
+
+}
+
+when HTTP_RESPONSE {
+    # Location Header Rewrite
+    # Value is Case-Sensitive / ohne string tolower kann auch der Key Case-Sensitive sein
+    if { [HTTP::header exists Location] }{
+        if { $static::contentswitching_debug } { log local0. "Matching HTTP Location header: [class match -name [string tolower [HTTP::header Location]] starts_with dg_return_path-rewrite]" }
+        HTTP::header replace Location "[string map [list "[class match -name [string tolower [HTTP::header Location]] starts_with dg_return_path-rewrite]" "[class match -value [HTTP::header Location] starts_with dg_return_path-rewrite]"] [string tolower [HTTP::header Location]]]"
+        if { $static::contentswitching_debug } { log local0. "New HTTP Location header: [HTTP::header Location]" }
+    }
+    
+    # Fix Broken Links in Response
+    if {[HTTP::header value Content-Type] starts_with "text"} {
+        # Todo: set Variable im HTTP_REQUEST Kontext, STREAM expression durch Variable ersetzen
+        STREAM::expression {@seiteEins@site1@}
+        STREAM::enable
+    }
+}
+
+
+# Todos:
+# * STREAM Funktion anpassen
+# Problem kann entstehen bei Multiplexing - Variable fuer STREAM funktioniert nur im Kontext der tcp Verbindung

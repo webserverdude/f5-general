@@ -1,0 +1,5 @@
+when HTTP_REQUEST {
+    if {not (([SSL::cipher version] equals "TLSv1.2") or ([SSL::cipher version] equals "TLSv1.3"))} {
+        log local0. "[virtual] [IP::client_addr] [SSL::cipher version] [HTTP::uri] [HTTP::host]"
+    }
+}

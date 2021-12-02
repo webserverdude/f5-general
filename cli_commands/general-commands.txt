@@ -1,0 +1,1 @@
+echo -n "Host:" $HOSTNAME " Key:"; f5mku -K;

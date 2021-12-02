@@ -1,0 +1,26 @@
+ltm rule rule_functional_api-protection {
+when HTTP_REQUEST {
+  if {[HTTP::method] eq "GET"}{
+    if {[HTTP::header "Content-Length"] ne "" && [HTTP::header "Content-Length"] <= 1048576}{
+      set content_length [HTTP::header "Content-Length"]
+    } else {
+        set content_length 1048576
+    }
+    if { $content_length > 0} {
+      HTTP::collect $content_length
+    }
+  }
+}
+when HTTP_REQUEST_DATA {
+  set identifier "[findstr [HTTP::payload] "<clientID>" 9 <]"
+  set sla [class lookup $identifier dg_clientIDs]
+  # log local0. "Made it to HTTP_REQUEST_DATA event with SLA value $sla."
+}
+when ACCESS_PER_REQUEST_AGENT_EVENT {
+  set id [ACCESS::perflow get perflow.irule_agent_id]
+  if { $id eq "read-sla" } {
+  # log local0. "Made it to iRule agent in perrequest policy with SLA value $sla."
+  ACCESS::perflow set perflow.custom "$sla"
+  }
+}
+}
