@@ -4,37 +4,40 @@ when RULE_INIT {
 }
  
 when HTTP_REQUEST {
-    # Matching Host to Pool
+    # Matching HTTP::host and HTTP::path to pool
     if { [catch { pool [class match -value [string tolower [HTTP::host][HTTP::path]] starts_with dg_applications] }]} {
         if { $static::contentswitching_debug } { log local0. "Caught exception: no pool matching for [string tolower [HTTP::host][HTTP::path]] ...retrying." }
         return
     }
     if { $static::contentswitching_debug } { log local0. "Using pool: [LB::server pool]" }
     
-    # Path rewrite
-    # Value is Case-Sensitive
-    if { $static::contentswitching_debug } { log local0. "Matching URL: [class match -name [string tolower [HTTP::path]] starts_with dg_path-rewrite]" }
-    if { [catch { HTTP::path "[string map [list "[class match -name [string tolower [HTTP::path]] starts_with dg_path-rewrite]" "[class match -value [string tolower [HTTP::path]] starts_with dg_path-rewrite]"] [string tolower [HTTP::path]]]" } err] } {
-        if { $static::contentswitching_debug } { log local0. "Path rewrite error message: $err" }
+    # Set STREAM expression for HTTP_RESPONE context
+    if { $static::contentswitching_debug } { log local0. "Matching URL for STREAM: [class match -name [string tolower [HTTP::path]] starts_with dg_link_rewrite ]" }
+    if { [catch { set substitute [class match -value [string tolower [HTTP::path]] starts_with dg_link_rewrite ] } err ] } {
         return
     }
     
-    # Host Header rewrite
-    if { $static::contentswitching_debug } { log local0. "Matching Internal Host: [class match -value [string tolower [HTTP::host]] starts_with dg_hostheader]" }
-    if { [catch {HTTP::header replace host [class match -value [string tolower [HTTP::host]] starts_with dg_hostheader] } err ] } {
+    # Rewrite Host request header
+    if { $static::contentswitching_debug } { log local0. "Matching Internal Host: [class match -value [string tolower [HTTP::path]] starts_with dg_hostheader]" }
+    if { [catch {HTTP::header replace host [class match -value [string tolower [HTTP::path]] starts_with dg_hostheader] } err ] } {
+        if { $static::contentswitching_debug } { log local0. "Path rewrite error message: $err" }
+        return
+    }
+
+    # Rewrite HTTP::path
+    # Value is Case-Sensitive
+    if { $static::contentswitching_debug } { log local0. "Matching URL for path rewrite: [class match -name [string tolower [HTTP::path]] starts_with dg_path-rewrite]" }
+    if { [catch { HTTP::path "[string map [list "[class match -name [string tolower [HTTP::path]] starts_with dg_path-rewrite]" "[class match -value [string tolower [HTTP::path]] starts_with dg_path-rewrite]"] [string tolower [HTTP::path]]]" } err] } {
         if { $static::contentswitching_debug } { log local0. "Path rewrite error message: $err" }
         return
     }
    
     # Disable STREAM in HTTP_REQUEST context
     STREAM::disable
-
-    # Set STREAM expression for HTTP_RESPONE context
-
 }
 
 when HTTP_RESPONSE {
-    # Location Header Rewrite
+    # Rewrite Location response header
     # Value is Case-Sensitive / ohne string tolower kann auch der Key Case-Sensitive sein
     if { [HTTP::header exists Location] }{
         if { $static::contentswitching_debug } { log local0. "Matching HTTP Location header: [class match -name [string tolower [HTTP::header Location]] starts_with dg_return_path-rewrite]" }
@@ -42,15 +45,13 @@ when HTTP_RESPONSE {
         if { $static::contentswitching_debug } { log local0. "New HTTP Location header: [HTTP::header Location]" }
     }
     
-    # Fix Broken Links in Response
-    if {[HTTP::header value Content-Type] starts_with "text"} {
-        # Todo: set Variable im HTTP_REQUEST Kontext, STREAM expression durch Variable ersetzen
-        STREAM::expression {@seiteEins@site1@}
-        STREAM::enable
+    # Substitute internal hyperlinks in response
+    # Achtung: Problem kann entstehen bei Multiplexing - Variable $substitute fuer STREAM funktioniert nur im Kontext der tcp Verbindung
+    if {$substitute ne ""} {
+        if {[HTTP::header value Content-Type] starts_with "text"} {
+            if { $static::contentswitching_debug } { log local0. "STREAM expression for substitution: $substitute" }
+            STREAM::expression [string trim $substitute " "]
+            STREAM::enable
+        }
     }
 }
-
-
-# Todos:
-# * STREAM Funktion anpassen
-# Problem kann entstehen bei Multiplexing - Variable fuer STREAM funktioniert nur im Kontext der tcp Verbindung
