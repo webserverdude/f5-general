@@ -11,6 +11,9 @@ Value: pl_nginx_4000
 Mapping von HTTP::path zu STREAM expression
 Key: /site2/
 Value: @siteTwo@site2@
+Regex for root /
+Key: /demo/
+Value: @^\/$@/demo/@
 
 ### dg_path-rewrite
 Mapping von HTTP::path zu internal Server Path
