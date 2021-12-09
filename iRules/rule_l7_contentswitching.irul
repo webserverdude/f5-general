@@ -25,33 +25,46 @@ when HTTP_REQUEST {
     }
 
     # Rewrite HTTP::path
-    # Value is Case-Sensitive
     if { $static::contentswitching_debug } { log local0. "Matching URL for path rewrite: [class match -name [string tolower [HTTP::path]] starts_with dg_path-rewrite]" }
     if { [catch { HTTP::path "[string map [list "[class match -name [string tolower [HTTP::path]] starts_with dg_path-rewrite]" "[class match -value [string tolower [HTTP::path]] starts_with dg_path-rewrite]"] [string tolower [HTTP::path]]]" } err] } {
         if { $static::contentswitching_debug } { log local0. "Path rewrite error message: $err" }
         return
     }
    
-    # Disable STREAM in HTTP_REQUEST context
+    # Explicitly disable the stream profile for each client-side request so it doesn't stay
+    # enabled for subsequent HTTP requests on the same TCP connection.
     STREAM::disable
+    # LTM does not uncompress response content, so if the webserver has compression enabled
+    # we must prevent the server from send us a compressed response by changing the request
+    # header that indicates client support for compression (on our LTM client-side we can re-
+    # apply compression before the response goes across the Internet)
+    HTTP::header remove "Accept-Encoding"
 }
 
 when HTTP_RESPONSE {
     # Rewrite Location response header
-    # Value is Case-Sensitive / ohne string tolower kann auch der Key Case-Sensitive sein
     if { [HTTP::header exists Location] }{
         if { $static::contentswitching_debug } { log local0. "Matching HTTP Location header: [class match -name [string tolower [HTTP::header Location]] starts_with dg_return_path-rewrite]" }
         HTTP::header replace Location "[string map [list "[class match -name [string tolower [HTTP::header Location]] starts_with dg_return_path-rewrite]" "[class match -value [HTTP::header Location] starts_with dg_return_path-rewrite]"] [string tolower [HTTP::header Location]]]"
         if { $static::contentswitching_debug } { log local0. "New HTTP Location header: [HTTP::header Location]" }
     }
+
+    # Explicitly disable the stream profile for each server-side response so it doesn't stay
+    # enabled for subsequent HTTP responses on the same TCP connection.
+    STREAM::disable
     
     # Substitute internal hyperlinks in response
-    # Achtung: Problem kann entstehen bei Multiplexing - Variable $substitute fuer STREAM funktioniert nur im Kontext der tcp Verbindung
     if {$substitute ne ""} {
+        # Apply stream profile against text responses from the application
         if {[HTTP::header value Content-Type] starts_with "text"} {
             if { $static::contentswitching_debug } { log local0. "STREAM expression for substitution: $substitute" }
             STREAM::expression [string trim $substitute " "]
             STREAM::enable
         }
     }
+}
+
+# This section only logs matches, and should be removed before using the rule in production.
+when STREAM_MATCHED {
+   if { $static::contentswitching_debug } { log local0. "Matched: [STREAM::match]" }
 }
