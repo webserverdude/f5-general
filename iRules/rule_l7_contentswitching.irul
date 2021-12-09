@@ -18,19 +18,19 @@ when HTTP_REQUEST {
     }
     
     # Rewrite Host request header
-    if { $static::contentswitching_debug } { log local0. "Matching Internal Host: [class match -value [string tolower [HTTP::path]] starts_with dg_hostheader]" }
+    if { $static::contentswitching_debug } { log local0. "Matching Internal Host. New value: [class match -value [string tolower [HTTP::path]] starts_with dg_hostheader]" }
     if { [catch {HTTP::header replace host [class match -value [string tolower [HTTP::path]] starts_with dg_hostheader] } err ] } {
         if { $static::contentswitching_debug } { log local0. "Path rewrite error message: $err" }
         return
     }
 
-    # Rewrite HTTP::path
-    if { $static::contentswitching_debug } { log local0. "Matching URL for path rewrite: [class match -name [string tolower [HTTP::path]] starts_with dg_path-rewrite]" }
-    if { [catch { HTTP::path "[string map [list "[class match -name [string tolower [HTTP::path]] starts_with dg_path-rewrite]" "[class match -value [string tolower [HTTP::path]] starts_with dg_path-rewrite]"] [string tolower [HTTP::path]]]" } err] } {
-        if { $static::contentswitching_debug } { log local0. "Path rewrite error message: $err" }
+  # Rewrite HTTP::path
+    if { $static::contentswitching_debug } { log local0. "Matching HTTP:path for rewrite. New value: [class match -value [string tolower [HTTP::path]] starts_with dg_path-rewrite]" }
+    if { [catch { HTTP::path [regsub -nocase [class match -name [string tolower [HTTP::path]] starts_with dg_path-rewrite] [HTTP::path] [class match -value [string tolower [HTTP::path]] starts_with dg_path-rewrite] ] } ] } {
+        if { $static::contentswitching_debug } { log local0. "Caught exception: Error rewriting HTTP::path" }
         return
     }
-   
+
     # Explicitly disable the stream profile for each client-side request so it doesn't stay
     # enabled for subsequent HTTP requests on the same TCP connection.
     STREAM::disable
@@ -44,16 +44,15 @@ when HTTP_REQUEST {
 when HTTP_RESPONSE {
     # Rewrite Location response header
     if { [HTTP::header exists Location] }{
-        if { $static::contentswitching_debug } { log local0. "Matching HTTP Location header: [class match -name [string tolower [HTTP::header Location]] starts_with dg_return_path-rewrite]" }
-        HTTP::header replace Location "[string map [list "[class match -name [string tolower [HTTP::header Location]] starts_with dg_return_path-rewrite]" "[class match -value [HTTP::header Location] starts_with dg_return_path-rewrite]"] [string tolower [HTTP::header Location]]]"
-        if { $static::contentswitching_debug } { log local0. "New HTTP Location header: [HTTP::header Location]" }
+        if { $static::contentswitching_debug } { log local0. "Matching HTTP Location header. New value: [class match -value [string tolower [HTTP::header Location]] starts_with dg_return_path-rewrite]" }
+        HTTP::header replace Location [regsub -nocase [class match -name [string tolower [HTTP::header Location]] starts_with dg_return_path-rewrite] [HTTP::header Location] [class match -value [string tolower [HTTP::header Location]] starts_with dg_return_path-rewrite] ]
     }
 
     # Explicitly disable the stream profile for each server-side response so it doesn't stay
     # enabled for subsequent HTTP responses on the same TCP connection.
     STREAM::disable
     
-    # Substitute internal hyperlinks in response
+    # Substitute internal hyperlinks in response body
     if {$substitute ne ""} {
         # Apply stream profile against text responses from the application
         if {[HTTP::header value Content-Type] starts_with "text"} {
@@ -62,9 +61,4 @@ when HTTP_RESPONSE {
             STREAM::enable
         }
     }
-}
-
-# This section only logs matches, and should be removed before using the rule in production.
-when STREAM_MATCHED {
-   if { $static::contentswitching_debug } { log local0. "Matched: [STREAM::match]" }
 }
