@@ -1,0 +1,169 @@
+when RULE_INIT {
+	array set static::msg_types {
+	       0 "bind request"
+	       1 "bind response"
+	       2 "unbind request"
+	       3 "search request"
+	       4 "search response"
+	       6 "modify request"
+	       7 "modify response"
+	       8 "add request"
+	       9 "add response"
+	      10 "delete request"
+	      11 "delete response"
+	      12 "modifydn request"
+	      13 "modifydn response"
+	      14 "compare request"
+	      15 "compare response"
+	      16 "abandon request"
+	      23 "extended request"
+	      24 "extended response"
+	}
+	array set static::response_code {
+		0 "success"
+		1 "operationsError"
+		2 "protocolError"
+		3 "timeLimitExceeded"
+		4 "sizeLimitExceeded"
+		5 "compareFalse"
+		6 "compareTrue"
+		7 "authMethodNotSupported"
+		8 "strongerAuthRequired"
+		9 "reserved (partialResults)"
+		10 "referral"
+		11 "adminLimitExceeded"
+		12 "unavailableCriticalExtension"
+		13 "confidentialityRequired"
+		14 "saslBindInProgress"
+		16 "noSuchAttribute"
+		17 "undefinedAttributeType"
+		18 "inappropriateMatching"
+		19 "constraintViolation"
+		20 "attributeOrValueExists"
+		21 "invalidAttributeSyntax"
+		32 "noSuchObject"
+		33 "aliasProblem"
+		34 "invalidDNSyntax"
+		35 "reserved (isLeaf)"
+		36 "aliasDereferencingProblem"
+		48 "inappropriateAuthentication"
+		49 "invalidCredentials"
+		50 "insufficientAccessRights"
+		51 "busy"
+		52 "unavailable"
+		53 "unwillingToPerform"
+		54 "loopDetect"
+		64 "namingViolation"
+		65 "objectClassViolation"
+		66 "notAllowedOnNonLeaf"
+		67 "notAllowedOnRDN"
+		68 "entryAlreadyExists"
+		69 "objectClassModsProhibited"
+		70 "reserved (resultsTooLarge)"
+		80 "other"
+	}
+}
+when CLIENTSSL_HANDSHAKE {
+    set static::debug 1
+	SSL::collect
+	if {$static::debug} {log local0. "*** Client SSL Collected ***"}
+}
+when CLIENTSSL_DATA {
+    if {$static::debug} { log local0. "*** Client SSL Data Received ***"}
+	set payload [SSL::payload]
+	binary scan $payload H2c ber_t ber_len
+	if { $ber_t ne "30" } {
+		reject
+		return
+	}
+	set len_bytes 0
+	if { [expr {[expr {$ber_len + 0x100} % 0x100]} & 128] > 0 } {
+	    set len_bytes [expr {[expr ($ber_len + 0x100) % 0x100]} & 127]
+	}
+	binary scan $payload x[expr {3 + $len_bytes}]c msgid_bytes
+	binary scan $payload x[expr {4 + $len_bytes + $msgid_bytes}]c msgtype
+	set msgtype [expr {$msgtype & 31}]
+	set timestamp [clock format [clock seconds] -format "%a, %d %h %Y %T GMT" -gmt 1]
+	if {$static::debug} {log local0. "*** Binary Scanned: Starting Catch Statement ***"}
+	if {[ catch { switch -glob [expr {$static::msg_types($msgtype)}] {
+				 "bind request" {
+					 binary scan $payload x[expr {11 + $len_bytes + $msgid_bytes}]H* username
+					 set user_ascii [binary format H* $username]
+					 set user_regex [regsub -all {[^[:ascii:]]+} $user_ascii "|"]
+					 set just_user [substr "$user_regex" 0 "|"]
+					 log local0. "*** BIND Request Received from IP: [IP::client_addr] | User: $just_user | Time: $timestamp ***"
+					 SSL::release
+					 if {$static::debug} {log local0. "*** SSL Traffic Released ***"}
+					 }
+				 "modify request" {
+					 log local0. "*** BIND Modify Received from IP: [IP::client_addr] | Time: $timestamp ***"
+					 reject
+					 return
+					 }
+				 "add request" {
+					 log local0. "*** BIND Add Received from IP: [IP::client_addr] | Time: $timestamp ***"
+					 reject
+					 return
+					 }
+				 "delete request" {
+					 log local0. "*** BIND Delete Received from IP: [IP::client_addr] | Time: $timestamp ***"
+					 reject
+					 return
+					 }
+				 "modifydn request" {
+					 log local0. "*** BIND ModifyDN Received from IP: [IP::client_addr] | Time: $timestamp ***"
+					 reject
+					 return
+					 }
+				 "extended request" {
+					 log local0. "*** BIND Extend Received from IP: [IP::client_addr] | Time: $timestamp ***"
+					 reject
+					 return
+					 }
+				 default {
+					 SSL::release
+					 if {$static::debug} {log local0. "*** Default SSL Traffic Released ***"}
+					 }
+		}}]}
+	{
+		log local0. "*** ERROR Occured in Request Decrypt. Please contact Developer ***"
+	}
+	SSL::collect
+	
+}
+when SERVERSSL_HANDSHAKE {
+    if {$static::debug} {log local0. "*** SEVER Handshake Received ***"}
+	if {[catch {
+	    SSL::collect
+	    if {$static::debug} {log local0. "*** Server SSL Traffic Collected ***"}
+	}]}
+	{ log local0. "*** ERROR Occured in Response Collect. Probably not SSL ***" }
+}
+when SERVERSSL_DATA {
+    if {$static::debug} { log local0. "*** Server Data Received ***"}
+    if {[catch {
+	    set payload [SSL::payload]
+	    binary scan $payload H2c ber_t ber_len
+	    set len_bytes 0
+	    if { [expr {[expr {$ber_len + 0x100} % 0x100]} & 128] > 0 } {
+		    set len_bytes [expr {[expr ($ber_len + 0x100) % 0x100]} & 127]
+		    }
+	    binary scan $payload x[expr {3 + $len_bytes}]c msgid_bytes
+	    binary scan $payload x[expr {4 + $len_bytes + $msgid_bytes}]c msgtype
+	    set responsemsgtype [expr {$msgtype & 31}]
+	    if {$static::debug} { log local0. "*** Server SSL Binary Scanned ***"}
+    }]}
+    {log local0. "*** ERROR Occured in Binary Scan. Please contact Developer ***"}
+	if {[catch {
+				 if { $static::msg_types($responsemsgtype) equals "bind response" } {
+					 binary scan $payload x[expr {8 + $len_bytes + $msgid_bytes}]c responseCode
+					 log local0. "*** Bind Result is: $static::response_code($responseCode) | Time: $timestamp ***"
+					 }
+				}]}
+			 {
+				 log local0. "*** ERROR Occured in Response Decrypt. Please contact Developer ***"
+				 }
+	SSL::release
+	if {$static::debug} {log local0. "*** Server SSL Traffic Released ***"}
+	SSL::collect
+}
