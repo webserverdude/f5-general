@@ -19,14 +19,23 @@ when HTTP_REQUEST {
     
     # Rewrite Host request header
     if { $static::contentswitching_debug } { log local0. "Matching Internal Host. New value: [class match -value [string tolower [HTTP::path]] starts_with dg_hostheader]" }
-    if { [catch {HTTP::header replace host [class match -value [string tolower [HTTP::path]] starts_with dg_hostheader] } err ] } {
-        if { $static::contentswitching_debug } { log local0. "Path rewrite error message: $err" }
-        return
+    if { [class match [string tolower [HTTP::path]] starts_with dg_hostheader] } {
+        if { [catch {HTTP::header replace host [class match -value [string tolower [HTTP::path]] starts_with dg_hostheader] } err ] } {
+            if { $static::contentswitching_debug } { log local0. "Path rewrite error message: $err" }
+            return
+        }
     }
 
   # Rewrite HTTP::path
     if { $static::contentswitching_debug } { log local0. "Matching HTTP:path for rewrite. New value: [class match -value [string tolower [HTTP::path]] starts_with dg_path-rewrite]" }
+    # Path rewrite based on HTTP::path
     if { [catch { HTTP::path [regsub -nocase [class match -name [string tolower [HTTP::path]] starts_with dg_path-rewrite] [HTTP::path] [class match -value [string tolower [HTTP::path]] starts_with dg_path-rewrite] ] } ] } {
+        if { $static::contentswitching_debug } { log local0. "Caught exception: Error rewriting HTTP::path" }
+        return
+    }
+    # Path rewrite based on HTTP::host
+    if { $static::contentswitching_debug } { log local0. "Matching HTTP:host for rewrite. New value: [class match -value [string tolower [HTTP::host]] starts_with dg_path-rewrite]" }
+    if { [catch { HTTP::path [regsub -nocase [class match -name [string tolower [HTTP::host]] starts_with dg_path-rewrite] [HTTP::host] [class match -value [string tolower [HTTP::host]] starts_with dg_path-rewrite] ] } ] } {
         if { $static::contentswitching_debug } { log local0. "Caught exception: Error rewriting HTTP::path" }
         return
     }
