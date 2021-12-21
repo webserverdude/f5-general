@@ -27,18 +27,24 @@ when HTTP_REQUEST {
     }
 
   # Rewrite HTTP::path
-    if { $static::contentswitching_debug } { log local0. "Matching HTTP:path for rewrite. New value: [class match -value [string tolower [HTTP::path]] starts_with dg_path-rewrite]" }
-    # Path rewrite based on HTTP::path
-    if { [catch { HTTP::path [regsub -nocase [class match -name [string tolower [HTTP::path]] starts_with dg_path-rewrite] [HTTP::path] [class match -value [string tolower [HTTP::path]] starts_with dg_path-rewrite] ] } ] } {
-        if { $static::contentswitching_debug } { log local0. "Caught exception: Error rewriting HTTP::path" }
-        return
+    if { [class match [string tolower [HTTP::path]] starts_with dg_path-rewrite] } {
+        if { $static::contentswitching_debug } { log local0. "Matching HTTP:path for rewrite. New value: [class match -value [string tolower [HTTP::path]] starts_with dg_path-rewrite]" }
+        # Path rewrite based on HTTP::path
+        if { [catch { HTTP::path [regsub -nocase [class match -name [string tolower [HTTP::path]] starts_with dg_path-rewrite] [HTTP::path] [class match -value [string tolower [HTTP::path]] starts_with dg_path-rewrite] ] } ] } {
+            if { $static::contentswitching_debug } { log local0. "Caught exception: Error rewriting [HTTP::path]" }
+            return
+            }
+    } elseif { [class match $hostheader starts_with dg_path-rewrite] } {
+        if { $static::contentswitching_debug } { log local0. "Matching HTTP:path for rewrite. New value: [class match -value $hostheader starts_with dg_path-rewrite]" }
+        # Path rewrite based on HTTP::host
+        if { [catch { HTTP::path [regsub -nocase [class match -name $hostheader starts_with dg_path-rewrite] $hostheader [class match -value $hostheader starts_with dg_path-rewrite] ] } ] } {
+            if { $static::contentswitching_debug } { log local0. "Caught exception: Error rewriting [HTTP::path]" }
+            return
+        }
+    } else {
+        return  
     }
-    # Path rewrite based on HTTP::host
-    if { $static::contentswitching_debug } { log local0. "Matching HTTP:host for rewrite. New value: [class match -value [string tolower [HTTP::host]] starts_with dg_path-rewrite]" }
-    if { [catch { HTTP::path [regsub -nocase [class match -name [string tolower [HTTP::host]] starts_with dg_path-rewrite] [HTTP::host] [class match -value [string tolower [HTTP::host]] starts_with dg_path-rewrite] ] } ] } {
-        if { $static::contentswitching_debug } { log local0. "Caught exception: Error rewriting HTTP::path" }
-        return
-    }
+    if { $static::contentswitching_debug } { log local0. "New HTTP path is: [HTTP::path]" }
 
     # Explicitly disable the stream profile for each client-side request so it doesn't stay
     # enabled for subsequent HTTP requests on the same TCP connection.
