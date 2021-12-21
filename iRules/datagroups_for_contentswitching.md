@@ -19,6 +19,9 @@ Value: @^\/$@/demo/@
 Mapping von HTTP::path zu internal Server Path
 Key: /site2/
 Value: /siteTwo/
+Example for host header to path rewrite
+Key: app.demo.org
+Valule: /app.demo.org/
 
 ### dg_hostheader
 Mapping von HTTP::path zu internal Host header

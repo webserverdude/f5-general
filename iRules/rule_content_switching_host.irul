@@ -1,0 +1,11 @@
+when HTTP_REQUEST {
+    log local0. "[class match -name [string tolower [HTTP::host]] contains dg_URL_rewrite] || [class match -name [string tolower [HTTP::path]] contains dg_URL_rewrite]"
+        set Url "[string tolower [HTTP::host][HTTP::path]]"
+        # log local0. "Url variable is $Url"
+        set newUrl "[regsub -nocase [class match -name $Url contains dg_URL_rewrite] $Url [class match -value $Url contains dg_URL_rewrite] ]"
+        # log local0. "New Url variable is $newUrl"
+        set host_anteil [getfield $newUrl "/" 1]
+        set path_anteil [getfield $newUrl "/" 2]
+        log local0. "New Host variable is $host_anteil"
+        log local0. "New Path variable is $path_anteil"
+}
