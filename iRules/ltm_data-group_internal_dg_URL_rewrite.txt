@@ -1,0 +1,26 @@
+ltm data-group internal dg_URL_rewrite {
+    records {
+        /demo/ {
+            data /
+        }
+        /site1/ {
+            data /siteEins
+        }
+        /site3/ {
+            data /siteDREI
+        }
+        /test1/ {
+            data /testEins
+        }
+        app01.zerotrust.works/site2/ {
+            data app01.internal.zerotrust.works/siteZwei/
+        }
+        app03.zerotrust.works {
+            data testserver:3000/testElf
+        }
+        app04.zerotrust.works {
+            data app04.intern.zerotrust.works/app04.zerotrust.works
+        }
+    }
+    type string
+}

@@ -16,34 +16,14 @@ when HTTP_REQUEST {
     if { [catch { set substitute [class match -value [string tolower [HTTP::path]] starts_with dg_link_rewrite ] } err ] } {
         return
     }
-    
-    # Rewrite Host request header
-    if { $static::contentswitching_debug } { log local0. "Matching Internal Host. New value: [class match -value [string tolower [HTTP::path]] starts_with dg_hostheader]" }
-    if { [class match [string tolower [HTTP::path]] starts_with dg_hostheader] } {
-        if { [catch {HTTP::header replace host [class match -value [string tolower [HTTP::path]] starts_with dg_hostheader] } err ] } {
-            if { $static::contentswitching_debug } { log local0. "Path rewrite error message: $err" }
-            return
-        }
-    }
 
-  # Rewrite HTTP::path
-    if { [class match [string tolower [HTTP::path]] starts_with dg_path-rewrite] } {
-        if { $static::contentswitching_debug } { log local0. "Matching HTTP:path for rewrite. New value: [class match -value [string tolower [HTTP::path]] starts_with dg_path-rewrite]" }
-        # Path rewrite based on HTTP::path
-        if { [catch { HTTP::path [regsub -nocase [class match -name [string tolower [HTTP::path]] starts_with dg_path-rewrite] [HTTP::path] [class match -value [string tolower [HTTP::path]] starts_with dg_path-rewrite] ] } ] } {
-            if { $static::contentswitching_debug } { log local0. "Caught exception: Error rewriting [HTTP::path]" }
-            return
-            }
-    } elseif { [class match $hostheader starts_with dg_path-rewrite] } {
-        if { $static::contentswitching_debug } { log local0. "Matching HTTP:path for rewrite. New value: [class match -value $hostheader starts_with dg_path-rewrite]" }
-        # Path rewrite based on HTTP::host
-        if { [catch { HTTP::path [regsub -nocase [class match -name $hostheader starts_with dg_path-rewrite] $hostheader [class match -value $hostheader starts_with dg_path-rewrite] ] } ] } {
-            if { $static::contentswitching_debug } { log local0. "Caught exception: Error rewriting [HTTP::path]" }
-            return
-        }
-    } else {
-        return  
-    }
+  # Rewrite HTTP::host and HTTP::path
+    set Url "[string tolower [HTTP::host][HTTP::path]]"
+    set Url "[regsub -nocase [class match -name $Url contains dg_URL_rewrite] $Url [class match -value $Url contains dg_URL_rewrite] ]"
+    HTTP::host [getfield $Url "/" 1]
+    HTTP::path "[regsub -nocase [HTTP::host] $Url "" ]"
+    unset Url
+    if { $static::contentswitching_debug } { log local0. "New HTTP host is: [HTTP::host]" }
     if { $static::contentswitching_debug } { log local0. "New HTTP path is: [HTTP::path]" }
 
     # Explicitly disable the stream profile for each client-side request so it doesn't stay
@@ -58,6 +38,7 @@ when HTTP_REQUEST {
 
 when HTTP_RESPONSE {
     # Rewrite Location response header
+    # matches ONLY the first occurance of the expression
     if { [HTTP::header exists Location] }{
         if { $static::contentswitching_debug } { log local0. "Matching HTTP Location header. New value: [class match -value [string tolower [HTTP::header Location]] starts_with dg_return_path-rewrite]" }
         HTTP::header replace Location [regsub -nocase [class match -name [string tolower [HTTP::header Location]] starts_with dg_return_path-rewrite] [HTTP::header Location] [class match -value [string tolower [HTTP::header Location]] starts_with dg_return_path-rewrite] ]
@@ -68,7 +49,7 @@ when HTTP_RESPONSE {
     STREAM::disable
     
     # Substitute internal hyperlinks in response body
-    if {$substitute ne ""} {
+    if { [info exists substitute] } {
         # Apply stream profile against text responses from the application
         if {[HTTP::header value Content-Type] starts_with "text"} {
             if { $static::contentswitching_debug } { log local0. "STREAM expression for substitution: $substitute" }
