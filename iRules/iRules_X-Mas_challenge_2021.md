@@ -33,8 +33,8 @@ Replacing the cookie value with TCL `[TCP::respond [info level 0]]` will expose 
 
 ![Exploit](/assets/xmas-challenge-2021.png "Exploit")
 
-## Solution
-Use curly braces around _$cookie_ to ensure the expression is evaluated without substitution:
+## The solution
+Use curly braces around _cookie_ to ensure the expression is evaluated without substitution:
 
 ```tcl
 when HTTP_REQUEST {
