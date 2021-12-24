@@ -27,7 +27,13 @@ Quoting from [K15650046: Tcl code injection security exposure](https://support.f
 
 _"The design of the Tcl language allows for substitutions in statements and commands and this feature of Tcl can allow injection attacks similar to those seen in SQL or shell scripting languages, where arbitrary user input is interpreted as code and executed.</br> The best practice for Tcl scripting is to enclose all expressions, ensuring that they are not substituted or evaluated unexpectedly. An additional benefit of this practice is increased performance, as the expressions can be precompiled instead of re-evaluated dynamically at runtime."_
 
-# Solution
+## The exploit
+
+Replacing the cookie value with TCL `[TCP::respond [info level 0]]` will expose the iRule context in which the TCL was executed.
+
+![Exploit](/assets/xmas-challenge-2021.png "Exploit")
+
+## Solution
 Use curly braces around _$cookie_ to ensure the expression is evaluated without substitution:
 
 ```tcl
