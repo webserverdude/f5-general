@@ -1,0 +1,105 @@
+## Change in behaviour HTTP::has_responded
+when HTTP_REQUEST {
+    if {[HTTP::has_responded]} {
+        return
+    } elseif {[HTTP::uri] equals "/"} {
+        HTTP::redirect "https://[HTTP::host]/somewhere/"
+    } else {
+        return        
+    } 
+}
+
+
+## LB Failed Testing
+when HTTP_REQUEST {
+    if {[active_members pl_noderunner_3000] < 1} {
+        HTTP::respond 200 content "
+            <html>
+                <head>
+                    <title>Apology Page</title>
+                </head>
+                <body>
+                    <h1>We are sorry, but the site you are looking for is temporarily out of service<br>
+                    If you feel you have reached this page in error, please try again.</h1>
+                    </body>
+            </html>"
+            log local0. "event HTTP_REQUEST"
+    } elseif {[HTTP::uri] equals "/"} {
+        HTTP::redirect "https://[HTTP::host]/somewhere/"
+    } else {
+        #default        
+    }
+}
+when LB_FAILED {
+    HTTP::respond 200 content "
+            <html>
+                <head>
+                    <title>Apology Page</title>
+                </head>
+                <body>
+                    <h1>We are sorry, but the site you are looking for is temporarily out of service<br>
+                    If you feel you have reached this page in error, please try again.</h1>
+                </body>
+            </html>"
+            log local0. "event HTTP_REQUEST"
+}
+
+
+## Switch Statement with Wildcard
+when HTTP_REQUEST {
+    switch -glob -- [string tolower [HTTP::path]] {
+        "/path1*" {
+            log local0. "1: HTTP Path is [HTTP::path]"
+        }
+        "/path2*" {
+            log local0. "2: HTTP Path is [HTTP::path]"
+        }
+
+        default {
+            log local0. "default: HTTP Path is [HTTP::path]"
+        }
+    }    
+}
+
+
+## Switching Server-SideSSL Profiles
+when HTTP_REQUEST {
+    set application [class match -value -- [string tolower [getfield [HTTP::host] ":" 1]] equals "dg_applications"]
+    switch -exact -- $application {
+        "app01" {
+            pool $application
+        }
+        "app02" {
+            pool $application
+        }
+        default {
+            reject
+        }
+    }
+}
+
+when SERVER_CONNECTED {
+        if { [info exists $application] } then {
+            SSL::profile $application
+        }
+}
+
+## Switching Server-SideSSL Profiles - Alternative
+when HTTP_REQUEST {
+        switch -exact -- [string tolower [getfield [HTTP::host] ":" 1]] {
+            "site1.domain.tld" {
+                pool site1.domain.tld
+                set srv_ssl_profile "serverssl"
+            }
+            "site2.domain.tld" {
+                pool site2.domain.tld
+                set srv_ssl_profile "serverssl"
+            }
+        }
+    }
+
+when SERVER_CONNECTED {
+        if { [info exists srv_ssl_profile] } then {
+            SSL::profile $srv_ssl_profile
+        }
+}
