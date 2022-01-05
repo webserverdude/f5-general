@@ -4,6 +4,13 @@ when RULE_INIT {
 }
  
 when HTTP_REQUEST {
+    # optimale Security (SSLF)
+    if { [HTTP::host] contains "\["  } {
+        if { $static::contentswitching_debug } { log local0. "Drop: square bracket in HTTP host header." }
+        drop
+        return
+    }
+
     # Matching HTTP::host and HTTP::path to pool
     if { [catch { pool [class match -value [string tolower [HTTP::host][HTTP::path]] starts_with dg_applications] }]} {
         if { $static::contentswitching_debug } { log local0. "Caught exception: no pool matching for [string tolower [HTTP::host][HTTP::path]] ...retrying." }
@@ -18,10 +25,10 @@ when HTTP_REQUEST {
     }
 
   # Rewrite HTTP::host and HTTP::path
-    set Url "[string tolower [HTTP::host][HTTP::path]]"
-    set Url "[regsub -nocase [class match -name $Url contains dg_URL_rewrite] $Url [class match -value $Url contains dg_URL_rewrite] ]"
+    set Url [string tolower [HTTP::host][HTTP::path]]
+    set Url [regsub -nocase [class match -name $Url contains dg_URL_rewrite] $Url [class match -value $Url contains dg_URL_rewrite] ]
     HTTP::host [getfield $Url "/" 1]
-    HTTP::path "[regsub -nocase [HTTP::host] $Url "" ]"
+    HTTP::path [regsub -nocase [HTTP::host] $Url "" ]
     unset Url
     if { $static::contentswitching_debug } { log local0. "New HTTP host is: [HTTP::host]" }
     if { $static::contentswitching_debug } { log local0. "New HTTP path is: [HTTP::path]" }
