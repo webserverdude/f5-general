@@ -1,4 +1,5 @@
 when RULE_INIT {
+	set static::debug 0
 	array set static::msg_types {
 	       0 "bind request"
 	       1 "bind response"
@@ -64,7 +65,6 @@ when RULE_INIT {
 	}
 }
 when CLIENTSSL_HANDSHAKE {
-    set static::debug 1
 	SSL::collect
 	if {$static::debug} {log local0. "*** Client SSL Collected ***"}
 }
@@ -91,32 +91,32 @@ when CLIENTSSL_DATA {
 					 set user_ascii [binary format H* $username]
 					 set user_regex [regsub -all {[^[:ascii:]]+} $user_ascii "|"]
 					 set just_user [substr "$user_regex" 0 "|"]
-					 log local0. "*** BIND Request Received from IP: [IP::client_addr] | User: $just_user | Time: $timestamp ***"
+					 log local0. "Time: $timestamp || User: $just_user || Source: [IP::client_addr]:[TCP::client_port] || Event: BIND Request"
 					 SSL::release
 					 if {$static::debug} {log local0. "*** SSL Traffic Released ***"}
 					 }
 				 "modify request" {
-					 log local0. "*** BIND Modify Received from IP: [IP::client_addr] | Time: $timestamp ***"
+					 log local0. "Time: $timestamp || User: $just_user || Source: [IP::client_addr]:[TCP::client_port] || Event: Modify Request Rejected"
 					 reject
 					 return
 					 }
 				 "add request" {
-					 log local0. "*** BIND Add Received from IP: [IP::client_addr] | Time: $timestamp ***"
+					 log local0. "Time: $timestamp || User: $just_user || Source: [IP::client_addr]:[TCP::client_port] || Event: Add Request Rejected"
 					 reject
 					 return
 					 }
 				 "delete request" {
-					 log local0. "*** BIND Delete Received from IP: [IP::client_addr] | Time: $timestamp ***"
+					 log local0. "Time: $timestamp || User: $just_user || Source: [IP::client_addr]:[TCP::client_port] || Event: Delete Request Rejected"
 					 reject
 					 return
 					 }
 				 "modifydn request" {
-					 log local0. "*** BIND ModifyDN Received from IP: [IP::client_addr] | Time: $timestamp ***"
+					 log local0. "Time: $timestamp || User: $just_user || Source: [IP::client_addr]:[TCP::client_port] || Event: ModifyDN Request Rejected"
 					 reject
 					 return
 					 }
 				 "extended request" {
-					 log local0. "*** BIND Extend Received from IP: [IP::client_addr] | Time: $timestamp ***"
+					 log local0. "Time: $timestamp || User: $just_user || Source: [IP::client_addr]:[TCP::client_port] || Event: Extended Request Rejected"
 					 reject
 					 return
 					 }
@@ -126,7 +126,7 @@ when CLIENTSSL_DATA {
 					 }
 		}}]}
 	{
-		log local0. "*** ERROR Occured in Request Decrypt. Please contact Developer ***"
+		if {$static::debug} {log local0. "*** ERROR Occured in Request Decrypt. Please contact Developer ***"}
 	}
 	SSL::collect
 	
@@ -153,15 +153,15 @@ when SERVERSSL_DATA {
 	    set responsemsgtype [expr {$msgtype & 31}]
 	    if {$static::debug} { log local0. "*** Server SSL Binary Scanned ***"}
     }]}
-    {log local0. "*** ERROR Occured in Binary Scan. Please contact Developer ***"}
+    { if {$static::debug} {log local0. "*** ERROR Occured in Binary Scan. Please contact Developer ***"}}
 	if {[catch {
 				 if { $static::msg_types($responsemsgtype) equals "bind response" } {
 					 binary scan $payload x[expr {8 + $len_bytes + $msgid_bytes}]c responseCode
-					 log local0. "*** Bind Result is: $static::response_code($responseCode) | Time: $timestamp ***"
+					 log local0. "Time: $timestamp || User: $just_user || Source: [IP::client_addr]:[TCP::client_port], Destination: [IP::server_addr]:[TCP::server_port], SNAT: [IP::local_addr]:[TCP::local_port] || Event: Bind Result is: $static::response_code($responseCode)"
 					 }
 				}]}
 			 {
-				 log local0. "*** ERROR Occured in Response Decrypt. Please contact Developer ***"
+				 if {$static::debug} {log local0. "*** ERROR Occured in Response Decrypt. Please contact Developer ***"}
 				 }
 	SSL::release
 	if {$static::debug} {log local0. "*** Server SSL Traffic Released ***"}
