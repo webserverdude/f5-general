@@ -25,7 +25,7 @@ when HTTP_REQUEST {
     }
 
   # Rewrite HTTP::host and HTTP::path
-    set Url [string tolower [HTTP::host][HTTP::path]]
+    set Url [HTTP::host][HTTP::path]
     set Url [regsub -nocase [class match -name $Url contains dg_URL_rewrite] $Url [class match -value $Url contains dg_URL_rewrite] ]
     HTTP::host [getfield $Url "/" 1]
     HTTP::path [regsub -nocase [HTTP::host] $Url "" ]
