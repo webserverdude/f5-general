@@ -91,7 +91,8 @@ when CLIENTSSL_DATA {
 					 set user_ascii [binary format H* $username]
 					 set user_regex [regsub -all {[^[:ascii:]]+} $user_ascii "|"]
 					 set just_user [substr "$user_regex" 0 "|"]
-					 log local0. "Time: $timestamp || User: $just_user || Source: [IP::client_addr]:[TCP::client_port] || Event: BIND Request"
+					 set msg_type_bind_request 1
+					 log local0. "Time: $timestamp || User: $just_user || Source: [IP::client_addr]:[TCP::client_port] || Event: BIND Request Client Side"
 					 SSL::release
 					 if {$static::debug} {log local0. "*** SSL Traffic Released ***"}
 					 }
@@ -131,6 +132,14 @@ when CLIENTSSL_DATA {
 	SSL::collect
 	
 }
+when SERVER_CONNECTED {
+    if { [catch { if {[info exists msg_type_bind_request] && $msg_type_bind_request}{
+        log local0. "Time: $timestamp || User: $just_user || Source: [IP::client_addr]:[TCP::client_port], Destination: [IP::server_addr]:[TCP::server_port], SNAT: [IP::local_addr]:[TCP::local_port] || Event: Bind Request Server Side"
+        }}]} 	{
+		if {$static::debug} {log local0. "*** ERROR Occured in SERVER_CONNECTED event. Please contact Developer ***"}
+	}
+	unset msg_type_bind_request
+}
 when SERVERSSL_HANDSHAKE {
     if {$static::debug} {log local0. "*** SEVER Handshake Received ***"}
 	if {[catch {
@@ -165,5 +174,4 @@ when SERVERSSL_DATA {
 				 }
 	SSL::release
 	if {$static::debug} {log local0. "*** Server SSL Traffic Released ***"}
-	SSL::collect
 }
