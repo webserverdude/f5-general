@@ -1,0 +1,39 @@
+priority 1
+when RULE_INIT {
+    # enable (1) / disable (0) logging
+    set static::contentswitching_debug 1
+}
+
+when HTTP_REQUEST {
+     if { [class match [IP::client_addr] equals dg_ip_MS-teams]}{
+     if { $static::contentswitching_debug } { log local0. "enabled MS ip: [IP::client_addr]" }
+     if { $static::contentswitching_debug } { log local0. "Access to URI [HTTP::path]" }
+     set is_disabled 0
+     switch -glob [string tolower [HTTP::path]] {
+         "/ews/mrsproxy.svc" -
+         "/ews/exchange.asmx*" -
+         "/autodiscover/autodiscover.svc/wssecurity" -
+         "/autodiscover/autodiscover.svc" - 
+         "/autodiscover/autodiscover.xml" -
+         "/metadata/json/*" -
+         "/api*" -
+         "/autodiscover/autodiscover.json*" {
+             set is_disabled 1
+             set path [HTTP::path]
+             ACCESS::disable
+             HTTP::path _disable-$path
+             pool /Common/owa2016.app/p_owa2016_edge_pool14
+         }
+     }
+}
+     if { $static::contentswitching_debug } { log local0. "disabled MS ip: [IP::client_addr]" }
+     if { $static::contentswitching_debug } { log local0. "disabled Access to URI [HTTP::path]" }
+}
+when HTTP_REQUEST_RELEASE {
+    if { [info exists is_disabled] && $is_disabled == 0 } { return }
+        if { [info exists path] } {
+            HTTP::path $path
+            unset is_disabled
+            unset path
+    }
+}

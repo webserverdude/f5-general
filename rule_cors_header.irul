@@ -1,0 +1,28 @@
+when HTTP_REQUEST {
+    unset -nocomplain cors_origin
+        if { ( [HTTP::method] equals "OPTIONS" ) and ( [HTTP::header exists "Access-Control-Request-Method"] ) } {
+            # CORS preflight request - return response immediately
+            HTTP::respond 204 -version auto noserver "Access-Control-Allow-Origin" [HTTP::header "Origin"] \
+                              "Access-Control-Allow-Credentials" [HTTP::header "Access-Control-Allow-Credentials"] \
+                              "Access-Control-Allow-Methods" [HTTP::header "Access-Control-Request-Method"] \
+                              "Access-Control-Allow-Headers" [HTTP::header "Access-Control-Request-Headers"] \
+                              "Access-Control-Expose-Headers" [HTTP::header "Access-Control-Expose-Headers"] \
+                              "Access-Control-Max-Age" "1728000" \
+                              "Vary" "Origin"
+        } else {
+            # CORS GET/POST requests - set cors_origin variable
+            set cors_origin [HTTP::header "Origin"]
+        }
+}
+
+when HTTP_RESPONSE {
+    # CORS GET/POST response - check cors_origin variable set in request
+    if { [info exists cors_origin] } {
+        HTTP::header insert "Access-Control-Allow-Origin" "*"
+        HTTP::header insert "Access-Control-Allow-Credentials" "true"
+        HTTP::header insert "Access-Control-Allow-Methods" "GET, POST, PUT, DELETE, OPTIONS, PATCH"
+        HTTP::header insert "Access-Control-Allow-Headers" "DNT,X-CustomHeader,Keep-Alive,User-Agent,X-Requested-With,If-Modified-Since,Cache-Control,Content-Type,Authorization,SimplifierToken,Gen-Token-Origin,SimplifierApp"
+        HTTP::header insert "Access-Control-Expose-Headers" "remainingTokenLifetime"
+        HTTP::header insert "Vary" "Origin"
+    }
+}
