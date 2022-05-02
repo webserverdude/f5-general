@@ -4,11 +4,17 @@ when RULE_INIT {
 }
  
 when HTTP_REQUEST {
-    # optimale Security (SSLF)
-    if { [HTTP::host] contains "\["  } {
-        if { $static::contentswitching_debug } { log local0. "Drop: square bracket in HTTP host header." }
-        drop
+    # Append trailing slash and redirect 301
+    if { [HTTP::has_responded] } {
+        if { $static::contentswitching_debug } { log local0. "Have already responded." }
         return
+    } else {
+        if { not ( [HTTP::path] ends_with "/") && not ( [URI::basename [HTTP::uri]] contains "." ) } {
+            HTTP::uri [HTTP::path]/[expr { "[URI::query [HTTP::uri]]" eq {} ? {}: "?[URI::query [HTTP::uri]]" } ]
+            if { $static::contentswitching_debug } { log local0. "Redirect to URI [HTTP::uri]" }
+            HTTP::respond 301 -version 1.1 noserver Location [HTTP::uri]
+            return
+        }
     }
 
     # Matching HTTP::host and HTTP::path to pool
@@ -56,12 +62,15 @@ when HTTP_RESPONSE {
     STREAM::disable
     
     # Substitute internal hyperlinks in response body
-    if { [info exists substitute] } {
+    if { [ catch { if { [info exists substitute] } {
         # Apply stream profile against text responses from the application
         if {[HTTP::header value Content-Type] starts_with "text"} {
             if { $static::contentswitching_debug } { log local0. "STREAM expression for substitution: $substitute" }
             STREAM::expression [string trim $substitute " "]
             STREAM::enable
         }
+    } } ] } {
+        if { $static::contentswitching_debug } { log local0. "Problem substituting string: $substitute" }
+        return
     }
 }
