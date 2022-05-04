@@ -2,13 +2,13 @@ when RULE_INIT {
     # enable (1) / disable (0) logging
     set static::contentswitching_debug 1
 }
- 
-when HTTP_REQUEST {
-    # Append trailing slash and redirect 301
+
+when HTTP_REQUEST priority 400 {
     if { [HTTP::has_responded] } {
         if { $static::contentswitching_debug } { log local0. "Have already responded." }
         return
     } else {
+        # Append trailing slash and redirect 301
         if { not ( [HTTP::path] ends_with "/") && not ( [URI::basename [HTTP::uri]] contains "." ) } {
             HTTP::uri [HTTP::path]/[expr { "[URI::query [HTTP::uri]]" eq {} ? {}: "?[URI::query [HTTP::uri]]" } ]
             if { $static::contentswitching_debug } { log local0. "Redirect to URI [HTTP::uri]" }
@@ -16,14 +16,22 @@ when HTTP_REQUEST {
             return
         }
     }
+}
 
-    # Matching HTTP::host and HTTP::path to pool
-    if { [catch { pool [class match -value [string tolower [HTTP::host][HTTP::path]] starts_with dg_applications] }]} {
-        if { $static::contentswitching_debug } { log local0. "Caught exception: no pool matching for [string tolower [HTTP::host][HTTP::path]] ...retrying." }
+when HTTP_REQUEST priority 600 {
+    if { [HTTP::has_responded] } {
+        if { $static::contentswitching_debug } { log local0. "Have already responded." }
         return
+    } else {
+        # Matching HTTP::host and HTTP::path to pool or send HTTP 404
+        if { [catch { pool [class match -value [string tolower [HTTP::host][HTTP::path]] starts_with dg_applications] }]} {
+        if { $static::contentswitching_debug } { log local0. "Caught exception: no pool matching for [string tolower [HTTP::host][HTTP::path]] ...sending 404." }
+        HTTP::respond 404 -version 1.1 content "404 not found" noserver
+        return
+        }
     }
     if { $static::contentswitching_debug } { log local0. "Using pool: [LB::server pool]" }
-    
+
     # Set STREAM expression for HTTP_RESPONE context
     if { $static::contentswitching_debug } { log local0. "Matching URL for STREAM: [class match -name [string tolower [HTTP::path]] starts_with dg_link_rewrite ]" }
     if { [catch { set substitute [class match -value [string tolower [HTTP::path]] starts_with dg_link_rewrite ] } err ] } {
@@ -60,7 +68,7 @@ when HTTP_RESPONSE {
     # Explicitly disable the stream profile for each server-side response so it doesn't stay
     # enabled for subsequent HTTP responses on the same TCP connection.
     STREAM::disable
-    
+
     # Substitute internal hyperlinks in response body
     if { [ catch { if { [info exists substitute] } {
         # Apply stream profile against text responses from the application
