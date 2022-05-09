@@ -40,7 +40,7 @@ when HTTP_REQUEST priority 600 {
 
   # Rewrite HTTP::host and HTTP::path
     set Url [HTTP::host][HTTP::path]
-    set Url [regsub -nocase [class match -name $Url contains dg_URL_rewrite] $Url [class match -value $Url contains dg_URL_rewrite] ]
+    set Url [regsub -nocase [class match -name [string tolower $Url] starts_with dg_URL_rewrite] $Url [class match -value [string tolower $Url] starts_with dg_URL_rewrite] 
     HTTP::host [getfield $Url "/" 1]
     HTTP::path [regsub -nocase [HTTP::host] $Url "" ]
     unset Url
